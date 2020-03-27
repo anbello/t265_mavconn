@@ -1,0 +1,11 @@
+{
+    "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools",
+    "files.associations": {
+        "iomanip": "cpp",
+        "core": "cpp",
+        "*.ipp": "cpp",
+        "vector": "cpp",
+        "eulerangles": "cpp",
+        "iostream": "cpp"
+    }
+}
