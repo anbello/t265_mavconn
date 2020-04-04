@@ -6,6 +6,7 @@
         "*.ipp": "cpp",
         "vector": "cpp",
         "eulerangles": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "chrono": "cpp"
     }
 }
