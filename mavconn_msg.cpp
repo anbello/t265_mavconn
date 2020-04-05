@@ -74,7 +74,7 @@ void send_set_home_position(MAVConnInterface *ip) {
 	ip->send_message_ignore_drop(&msg);
 }
 
-void send_vision_position_estimate(MAVConnInterface *ip, Vec3d tra, Vec3d rot, uint64_t micros) {
+void send_vision_position_estimate(MAVConnInterface *ip, uint64_t micros, Vec3f tra, Vec3f rot) {
 	mavlink_message_t msg {};
 	mavlink::MsgMap map(msg);
 
@@ -90,6 +90,28 @@ void send_vision_position_estimate(MAVConnInterface *ip, Vec3d tra, Vec3d rot, u
 
 	vpe.serialize(map);
 	mavlink::mavlink_finalize_message(&msg, ip->get_system_id(), ip->get_component_id(), vpe.MIN_LENGTH, vpe.LENGTH, vpe.CRC_EXTRA);
+
+	ip->send_message_ignore_drop(&msg);
+}
+
+void send_vision_position_delta(MAVConnInterface *ip, uint64_t time_us, uint64_t time_delta_us, Vec3f angle_delta, Vec3f position_delta, float confidence) {
+	mavlink_message_t msg {};
+	mavlink::MsgMap map(msg);
+
+	mavlink::ardupilotmega::msg::VISION_POSITION_DELTA vpd {};
+
+    vpd.time_usec = time_us;
+	vpd.time_delta_usec = time_delta_us;
+	vpd.angle_delta[0] = angle_delta[0];
+	vpd.angle_delta[1] = angle_delta[1];
+	vpd.angle_delta[2] = angle_delta[2];
+	vpd.position_delta[0] = position_delta[0];
+	vpd.position_delta[1] = position_delta[1];
+	vpd.position_delta[2] = position_delta[2];
+	vpd.confidence = confidence;
+
+	vpd.serialize(map);
+	mavlink::mavlink_finalize_message(&msg, ip->get_system_id(), ip->get_component_id(), vpd.MIN_LENGTH, vpd.LENGTH, vpd.CRC_EXTRA);
 
 	ip->send_message_ignore_drop(&msg);
 }
@@ -123,7 +145,7 @@ void send_system_time(MAVConnInterface *ip, uint64_t time_unix_usec) {
 	ip->send_message_ignore_drop(&msg);
 }
 
-void send_gps_input(MAVConnInterface *ip, uint64_t time_unix_usec, Vec3d pos_ned, Vec3d vel_ned, uint16_t yaw_cd) {
+void send_gps_input(MAVConnInterface *ip, uint64_t time_unix_usec, Vec3f pos_ned, Vec3f vel_ned, uint16_t yaw_cd) {
 	mavlink_message_t msg {};
 	mavlink::MsgMap map(msg);
 
