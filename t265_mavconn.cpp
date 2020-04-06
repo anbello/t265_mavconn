@@ -6,6 +6,7 @@
 #include <chrono>
 #include <time.h>
 #include <mavconn/interface.h>
+#include <Iir.h>
 
 #include "mavconn_msg.h"
 
@@ -120,7 +121,7 @@ int main(int argc, char *argv[])
 			mavlink::MsgMap map(msg);
 
 			stt.deserialize(map);
-			cout << "STATUSTEXT: " << to_string(stt.text) << endl;
+			// cout << "STATUSTEXT: " << to_string(stt.text) << endl;
 		} else if (msgid == mavlink::common::msg::TIMESYNC::MSG_ID) {
             mavlink::common::msg::TIMESYNC tms {};
             mavlink::MsgMap map(msg);
@@ -140,6 +141,17 @@ int main(int argc, char *argv[])
         }
 	};
 #endif // MAV
+    // IIR filter
+    const int order = 4; // 4th order (=2 biquads)
+    Iir::Butterworth::LowPass<order> ft0, ft1, ft2, fv0, fv1, fv2;
+    const float samplingrate = 200; // Hz
+    const float cutoff_frequency = 10; // Hz
+    ft0.setup (samplingrate, cutoff_frequency);
+    ft1.setup (samplingrate, cutoff_frequency);
+    ft2.setup (samplingrate, cutoff_frequency);
+    fv0.setup (samplingrate, cutoff_frequency);
+    fv1.setup (samplingrate, cutoff_frequency);
+    fv2.setup (samplingrate, cutoff_frequency);
 
     bool first = true;
 
@@ -321,8 +333,14 @@ int main(int argc, char *argv[])
                 first = false;
             }
 
-            tvec_vel_filt = tvec_vel_prev * 0.9 + tvec_vel * 0.1;
-            VelVecFilt = VelVecPrev * 0.75 + VelVec * 0.25;
+            //tvec_vel_filt = tvec_vel_prev * 0.9 + tvec_vel * 0.1;
+            tvec_vel_filt[0] = ft0.filter(tvec_vel[0]);
+            tvec_vel_filt[1] = ft1.filter(tvec_vel[1]);
+            tvec_vel_filt[2] = ft2.filter(tvec_vel[2]);
+            //VelVecFilt = VelVecPrev * 0.75 + VelVec * 0.25;
+            VelVecFilt[0] =  fv0.filter(VelVec[0]);
+            VelVecFilt[1] =  fv1.filter(VelVec[1]);
+            VelVecFilt[2] =  fv2.filter(VelVec[2]);
 
             tvec_prev = tvec;
             rvec_prev = rvec;
@@ -333,9 +351,9 @@ int main(int argc, char *argv[])
             if ((now - prev_send_pose) > pose_msg_period) {
                 //cout << "Tick Send Pose = " << (now - prev_send_pose) << endl;
 
-                //cout << "fn:" << frame_number << " dt:" << (now - pose_timestamp * 1000.0) << endl;
+                cout << "fn:" << frame_number << " dt:" << dt << endl;
 
-                //cout << tvec_vel_filt[0] << " " << tvec_vel_filt[1] << " " << tvec_vel_filt[2] << " " 
+                // cout << tvec_vel_filt[0] << " " << tvec_vel_filt[1] << " " << tvec_vel_filt[2] << " " 
                 //        << VelVec[0] << " " << VelVec[1] << " " << VelVec[2] << " " 
                 //        << VelVecFilt[0] << " " << VelVecFilt[1] << " " << VelVecFilt[2] << endl;
 #ifdef MAV
@@ -367,7 +385,7 @@ int main(int argc, char *argv[])
         }
 
         if ((now - prev_heartbeat) > 1.0) {
-            cout << "Tick Heart Beat = " << (now - prev_heartbeat) << endl;
+            // cout << "Tick Heart Beat = " << (now - prev_heartbeat) << endl;
             prev_heartbeat = now;
 #ifdef MAV
 			send_heartbeat(client.get());
@@ -376,11 +394,11 @@ int main(int argc, char *argv[])
 			send_gps_global_origin(client.get());
 			send_set_home_position(client.get());
 #endif
-            if (pose) {
-                cout << "tra:" << tvec << endl;
-                cout << "rot:" << rvec << endl;
-                cout << "fn:" << frame_number << " dt:" << (now - pose_timestamp * 1000.0) << " conf:" << confidence << endl;
-            }
+            // if (pose) {
+            //     cout << "tra:" << tvec << endl;
+            //     cout << "rot:" << rvec << endl;
+            //     cout << "fn:" << frame_number << " dt:" << (now - pose_timestamp * 1000.0) << " conf:" << confidence << endl;
+            // }
         }
     }
 

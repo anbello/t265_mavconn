@@ -37,6 +37,8 @@ message(STATUS "    version: ${libmavconn_VERSION}")
 message(STATUS "    libraries: ${libmavconn_LIBRARIES}")
 message(STATUS "    include path: ${libmavconn_INCLUDE_DIRS}")
 
+find_package(iir)
+
 # add package modules path, not needed in dependend packages
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
 include(EnableCXX11)
@@ -54,4 +56,4 @@ set(OBJS
 add_executable(t265_mavconn t265_mavconn.cpp mavconn_msg.cpp)
 
 # Link your application with OpenCV libraries
-target_link_libraries(t265_mavconn LINK_PRIVATE realsense2 ${OpenCV_LIBS} ${libmavconn_LIBRARIES})
+target_link_libraries(t265_mavconn LINK_PRIVATE realsense2 ${OpenCV_LIBS} ${libmavconn_LIBRARIES} iir::iir)
