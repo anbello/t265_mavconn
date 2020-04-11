@@ -345,19 +345,35 @@ int main(int argc, char *argv[])
                 }
                 else if (vision_gps_msg == 2) {
                     send_gps_input(client.get(), now_micros, tvec, VelVec, yaw_cd);
-                    //send_gps_input(client.get(), now_micros, tvec, tvec_vel_filt, yaw_cd);
                 }
                 else if (vision_gps_msg == 3) {
                     delta_micros = (uint64_t)((now - prev_send_pose) * 1000000.0);
+
+                    deltaTra = RotMat.t() * (tvec - tvec_prev_send);
                     deltaRot = (rvec - rvec_prev_send);
-                    deltaTra = (tvec - tvec_prev_send);
-                    if (deltaRot[2] > 1.0) {
+                    
+                    if (deltaRot[2] > M_PI_2) {
                         deltaRot[2] -= 2.0 * M_PI;
-                    } else if (deltaRot[2] < -1.0) {
+                    } else if (deltaRot[2] < -M_PI_2) {
                         deltaRot[2] += 2.0 * M_PI;
                     }
-                    //cout << "dy:" << deltaRot[2] << " dt:" << (delta_micros / 1000000.0) << endl;
+
                     send_vision_position_delta(client.get(), now_micros, delta_micros, deltaRot, deltaTra, confidence);
+                }
+                else if (vision_gps_msg == 4) {
+                    delta_micros = (uint64_t)((now - prev_send_pose) * 1000000.0);
+
+                    deltaTra = RotMat.t() * (tvec - tvec_prev_send);
+                    deltaRot = (rvec - rvec_prev_send);
+                    
+                    if (deltaRot[2] > M_PI_2) {
+                        deltaRot[2] -= 2.0 * M_PI;
+                    } else if (deltaRot[2] < -M_PI_2) {
+                        deltaRot[2] += 2.0 * M_PI;
+                    }
+
+                    send_vision_position_delta(client.get(), now_micros, delta_micros, deltaRot, deltaTra, confidence);
+                    send_gps_input(client.get(), now_micros, tvec, VelVec, yaw_cd);
                 }
 #endif
                 tvec_prev_send = tvec;
