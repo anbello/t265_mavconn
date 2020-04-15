@@ -51,7 +51,7 @@ bool isRotationMatrix(Matx33f &R)
 // of the euler angles ( x and z are swapped ).
 Vec3f rotationMatrixToEulerAngles(Matx33f &R)
 {
-    assert(isRotationMatrix(R));
+    // assert(isRotationMatrix(R));
 
     float sy = sqrt(R(0,0) * R(0,0) +  R(1,0) * R(1,0) );
 
@@ -147,8 +147,6 @@ int main(int argc, char *argv[])
     u_int64_t now_nanos = 0;
     u_int32_t delta_micros = 0;
     double now, prev_send_pose, prev_heartbeat;
-    double prev_iter = 0.0;
-    float dt = 0.0;
 
     auto now_epoch = system_clock::now().time_since_epoch();
     now_micros = duration_cast<microseconds>(now_epoch).count();
@@ -158,27 +156,20 @@ int main(int argc, char *argv[])
 
     double pose_msg_period = 1.0 / (double)pose_msg_rate;
 
-    Vec3f rvec = Vec3f(0.0, 0.0, 0.0);
-    Vec3f tvec = Vec3f(0.0, 0.0, 0.0);
-    Vec3f rvec_prev = Vec3f(0.0, 0.0, 0.0);
-    Vec3f tvec_prev = Vec3f(0.0, 0.0, 0.0);
-    Vec3f rvec_prev_send = Vec3f(0.0, 0.0, 0.0);
-    Vec3f tvec_prev_send = Vec3f(0.0, 0.0, 0.0);
-    Vec3f tvec_vel = Vec3f(0.0, 0.0, 0.0);
-    Vec3f tvec_vel_prev = Vec3f(0.0, 0.0, 0.0);
-    Vec3f tvec_vel_filt = Vec3f(0.0, 0.0, 0.0);
+    Vec3f rpyvec = Vec3f(0.0, 0.0, 0.0);
+    Vec3f xyzvec = Vec3f(0.0, 0.0, 0.0);
 
-    Affine3d H_T265Ref_T265body;
-    Affine3d H_aeroRef_T265Ref;
-    Affine3d H_T265body_aeroBody;
-    Affine3d H_aeroRef_aeroBody;
-    Affine3d H_body_camera;
-    Affine3d H_camera_body;
+    Affine3f H_T265Ref_T265body;
+    Affine3f H_aeroRef_T265Ref;
+    Affine3f H_T265body_aeroBody;
+    Affine3f H_aeroRef_aeroBody;
+    Affine3f H_aeroRef_PrevAeroBody;
+    Affine3f H_aeroRef_VelAeroBody;
+    Affine3f H_body_camera;
+    Affine3f H_camera_body;
 
     Vec3f TraVec = Vec3f(0.0, 0.0, 0.0);
     Vec3f VelVec = Vec3f(0.0, 0.0, 0.0);
-    Vec3f VelVecPrev = Vec3f(0.0, 0.0, 0.0);
-    Vec3f VelVecFilt = Vec3f(0.0, 0.0, 0.0);
     Vec3f deltaRot = Vec3f(0.0, 0.0, 0.0);
     Vec3f deltaTra = Vec3f(0.0, 0.0, 0.0);
     Matx33f RotMat;
@@ -190,7 +181,7 @@ int main(int argc, char *argv[])
                      1.0,  0.0,  0.0, 
                      0.0, -1.0,  0.0);
 
-    H_aeroRef_T265Ref = Affine3d(RotMat, Vec3f(0.0, 0.0, 0.0));
+    H_aeroRef_T265Ref = Affine3f(RotMat, Vec3f(0.0, 0.0, 0.0));
 
     if (camera_orientation == 0) {
         // Forward, USB port to the right
@@ -202,7 +193,7 @@ int main(int argc, char *argv[])
                          1.0, 0.0, 0.0, 
                          0.0, 0.0,-1.0);
 
-        H_T265body_aeroBody = Affine3d(RotMat, Vec3f(0.0, 0.0, 0.0));
+        H_T265body_aeroBody = Affine3f(RotMat, Vec3f(0.0, 0.0, 0.0));
     }
     else if (camera_orientation == 2) {
         // 45degree forward
@@ -210,12 +201,14 @@ int main(int argc, char *argv[])
                         -0.70710676, -0.0, -0.70710676,
                         -0.70710676,  0.0,  0.70710676);
 
-        H_T265body_aeroBody = Affine3d(RotMat, Vec3f(0.0, 0.0, 0.0));
+        H_T265body_aeroBody = Affine3f(RotMat, Vec3f(0.0, 0.0, 0.0));
     }
     else {
         // Default
         H_T265body_aeroBody = H_aeroRef_T265Ref.inv();
     }
+
+    H_aeroRef_PrevAeroBody = Affine3f();
 
     double pose_timestamp;
     u_int64_t frame_number;
@@ -256,7 +249,7 @@ int main(int argc, char *argv[])
 
             TraVec = Vec3f(pose_data.translation.x, pose_data.translation.y, pose_data.translation.z);
             RotMat = quaternionToRotationMatrix(pose_data.rotation);
-            H_T265Ref_T265body = Affine3d(RotMat, TraVec);
+            H_T265Ref_T265body = Affine3f(RotMat, TraVec);
 
             H_aeroRef_aeroBody = H_aeroRef_T265Ref * H_T265Ref_T265body * H_T265body_aeroBody;
 
@@ -264,7 +257,7 @@ int main(int argc, char *argv[])
             // Offset
             // ******************
 
-            H_body_camera = Affine3d();   // Default constructor. It represents a 4x4 identity matrix.
+            H_body_camera = Affine3f();   // Default constructor. It represents a 4x4 identity matrix.
             H_body_camera.translation(Vec3f(offset_x, offset_y, offset_z));
             H_camera_body = H_body_camera.inv();
 
@@ -275,26 +268,26 @@ int main(int argc, char *argv[])
             // ******************
 
             RotMat = H_aeroRef_aeroBody.rotation();
-            tvec = H_aeroRef_aeroBody.translation();
-            rvec = rotationMatrixToEulerAngles(RotMat);
+            xyzvec = H_aeroRef_aeroBody.translation();
+            rpyvec = rotationMatrixToEulerAngles(RotMat);
 
             // ****************************
             // Transform velocity from T265
             // ****************************
 
             VelVec = Vec3f(pose_data.velocity.x, pose_data.velocity.y, pose_data.velocity.z);
-            H_T265Ref_T265body = Affine3d();   // Default constructor. It represents a 4x4 identity matrix.
+            H_T265Ref_T265body = Affine3f();   // Default constructor. It represents a 4x4 identity matrix.
             H_T265Ref_T265body.translation(VelVec);
 
-            H_aeroRef_aeroBody = H_aeroRef_T265Ref * H_T265Ref_T265body * H_T265body_aeroBody;
+            H_aeroRef_VelAeroBody = H_aeroRef_T265Ref * H_T265Ref_T265body * H_T265body_aeroBody;
 
-            VelVec = H_aeroRef_aeroBody.translation();
+            VelVec = H_aeroRef_VelAeroBody.translation();
 
             // ***********************************************
             // Yaw in cdeg and velocity from position derivate
             // ***********************************************
 
-            yaw_deg = rvec[2] * 180.0 / M_PI;
+            yaw_deg = rpyvec[2] * 180.0 / M_PI;
             yaw_deg = (yaw_deg < 0.0) ? yaw_deg + 360.0 : yaw_deg;
             yaw_deg = (yaw_deg >= 360.0) ? yaw_deg - 360.0 : yaw_deg;
 
@@ -302,82 +295,45 @@ int main(int argc, char *argv[])
             if (yaw_cd == 0)
                 yaw_cd = 36000;
 
-            if (prev_iter > 0.0) {
-                dt = (now - prev_iter);
-            } else {
-                dt = 0.0;
-            }
-            prev_iter = now;
-
-            if (dt > 0.0) {
-                tvec_vel = (tvec - tvec_prev) / dt;
-            } else {
-                tvec_vel = Vec3f(0.0, 0.0, 0.0);
-            }
-            
-            if (first) {
-                tvec_vel_prev = tvec_vel;
-                VelVecPrev = VelVec;
-                first = false;
-            }
-
-            tvec_vel_filt = tvec_vel_prev * 0.9 + tvec_vel * 0.1;
-            VelVecFilt = VelVecPrev * 0.75 + VelVec * 0.25;
-
-            tvec_prev = tvec;
-            rvec_prev = rvec;
-
-            tvec_vel_prev = tvec_vel_filt;
-            VelVecPrev = VelVecFilt;
-
             if ((now - prev_send_pose) > pose_msg_period) {
                 //cout << "Tick Send Pose = " << (now - prev_send_pose) << endl;
 
                 //cout << "fn:" << frame_number << " dt:" << (now - pose_timestamp * 1000.0) << endl;
 
-                //cout << tvec_vel_filt[0] << " " << tvec_vel_filt[1] << " " << tvec_vel_filt[2] << " " 
+                //cout << xyzvec_vel_filt[0] << " " << xyzvec_vel_filt[1] << " " << xyzvec_vel_filt[2] << " " 
                 //        << VelVec[0] << " " << VelVec[1] << " " << VelVec[2] << " " 
                 //        << VelVecFilt[0] << " " << VelVecFilt[1] << " " << VelVecFilt[2] << endl;
 #ifdef MAV
                 if (vision_gps_msg == 1) {
-                    send_vision_position_estimate(client.get(), now_micros, tvec, rvec);
-                    //cout << "R: " << rvec[0] << " P: " << rvec[1] << " Y: " << rvec[2] <<  endl;
+                    send_vision_position_estimate(client.get(), now_micros, xyzvec, rpyvec);
+                    //cout << "R: " << rpyvec[0] << " P: " << rpyvec[1] << " Y: " << rpyvec[2] <<  endl;
                 }
                 else if (vision_gps_msg == 2) {
-                    send_gps_input(client.get(), now_micros, tvec, VelVec, yaw_cd);
+                    send_gps_input(client.get(), now_micros, xyzvec, VelVec, yaw_cd);
                 }
                 else if (vision_gps_msg == 3) {
                     delta_micros = (uint64_t)((now - prev_send_pose) * 1000000.0);
 
-                    deltaTra = RotMat.t() * (tvec - tvec_prev_send);
-                    deltaRot = (rvec - rvec_prev_send);
-                    
-                    if (deltaRot[2] > M_PI_2) {
-                        deltaRot[2] -= 2.0 * M_PI;
-                    } else if (deltaRot[2] < -M_PI_2) {
-                        deltaRot[2] += 2.0 * M_PI;
-                    }
+                    Affine3f H_PrevAeroBody_CurrAeroBody = H_aeroRef_PrevAeroBody.inv() * H_aeroRef_aeroBody;
+                    deltaTra = H_PrevAeroBody_CurrAeroBody.translation();
+                    Matx33f RotM = H_PrevAeroBody_CurrAeroBody.rotation();
+                    deltaRot = rotationMatrixToEulerAngles(RotM);
 
                     send_vision_position_delta(client.get(), now_micros, delta_micros, deltaRot, deltaTra, confidence);
                 }
                 else if (vision_gps_msg == 4) {
                     delta_micros = (uint64_t)((now - prev_send_pose) * 1000000.0);
 
-                    deltaTra = RotMat.t() * (tvec - tvec_prev_send);
-                    deltaRot = (rvec - rvec_prev_send);
-                    
-                    if (deltaRot[2] > M_PI_2) {
-                        deltaRot[2] -= 2.0 * M_PI;
-                    } else if (deltaRot[2] < -M_PI_2) {
-                        deltaRot[2] += 2.0 * M_PI;
-                    }
+                    Affine3f H_PrevAeroBody_CurrAeroBody = H_aeroRef_PrevAeroBody.inv() * H_aeroRef_aeroBody;
+                    deltaTra = H_PrevAeroBody_CurrAeroBody.translation();
+                    Matx33f RotM = H_PrevAeroBody_CurrAeroBody.rotation();
+                    deltaRot = rotationMatrixToEulerAngles(RotM);
 
                     send_vision_position_delta(client.get(), now_micros, delta_micros, deltaRot, deltaTra, confidence);
-                    send_gps_input(client.get(), now_micros, tvec, VelVec, yaw_cd);
+                    send_gps_input(client.get(), now_micros, xyzvec, VelVec, yaw_cd);
                 }
 #endif
-                tvec_prev_send = tvec;
-                rvec_prev_send = rvec;
+                H_aeroRef_PrevAeroBody = H_aeroRef_aeroBody;
                 prev_send_pose = now;
             }
         }
@@ -393,8 +349,8 @@ int main(int argc, char *argv[])
 			send_set_home_position(client.get());
 #endif
             if (pose) {
-                cout << "tra:" << tvec << endl;
-                cout << "rot:" << rvec << endl;
+                cout << "tra:" << xyzvec << endl;
+                cout << "rot:" << rpyvec << endl;
                 cout << "fn:" << frame_number << " dt:" << (now - pose_timestamp * 1000.0) << " conf:" << confidence << endl;
             }
         }
