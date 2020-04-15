@@ -73,6 +73,45 @@ Vec3f rotationMatrixToEulerAngles(Matx33f &R)
     return Vec3f(x, y, z);
 }
 
+Vec3f rotationMatrixToEulerAngles2(Matx33f & rotationMatrix)
+{
+    Vec3f euler;
+
+    double m00 = rotationMatrix(0,0);
+    double m02 = rotationMatrix(0,2);
+    double m10 = rotationMatrix(1,0);
+    double m11 = rotationMatrix(1,1);
+    double m12 = rotationMatrix(1,2);
+    double m20 = rotationMatrix(2,0);
+    double m22 = rotationMatrix(2,2);
+
+    double bank, attitude, heading;
+
+    // Assuming the angles are in radians.
+    if (m10 > 0.998) { // singularity at north pole
+        bank = 0;
+        attitude = CV_PI/2;
+        heading = atan2(m02,m22);
+    }
+    else if (m10 < -0.998) { // singularity at south pole
+        bank = 0;
+        attitude = -CV_PI/2;
+        heading = atan2(m02,m22);
+    }
+    else
+    {
+        bank = atan2(-m12,m11);
+        attitude = asin(m10);
+        heading = atan2(-m20,m00);
+    }
+
+    euler(0) = bank;
+    euler(2) = attitude;
+    euler(1) = heading;
+
+    return euler;
+}
+
 int main(int argc, char *argv[])
 {
     CommandLineParser parser(argc, argv, keys);
@@ -157,6 +196,7 @@ int main(int argc, char *argv[])
     double pose_msg_period = 1.0 / (double)pose_msg_rate;
 
     Vec3f rpyvec = Vec3f(0.0, 0.0, 0.0);
+    Vec3f rpyvec2 = Vec3f(0.0, 0.0, 0.0);
     Vec3f xyzvec = Vec3f(0.0, 0.0, 0.0);
 
     Affine3f H_T265Ref_T265body;
@@ -270,6 +310,7 @@ int main(int argc, char *argv[])
             RotMat = H_aeroRef_aeroBody.rotation();
             xyzvec = H_aeroRef_aeroBody.translation();
             rpyvec = rotationMatrixToEulerAngles(RotMat);
+            rpyvec2 = rotationMatrixToEulerAngles2(RotMat);
 
             // ****************************
             // Transform velocity from T265
@@ -351,6 +392,7 @@ int main(int argc, char *argv[])
             if (pose) {
                 cout << "tra:" << xyzvec << endl;
                 cout << "rot:" << rpyvec << endl;
+                cout << "rt2:" << rpyvec2 << endl;
                 cout << "fn:" << frame_number << " dt:" << (now - pose_timestamp * 1000.0) << " conf:" << confidence << endl;
             }
         }
