@@ -137,6 +137,7 @@ int main(int argc, char *argv[])
     float offset_z = fs["offset_z"];
     float scale_factor = fs["scale_factor"];
     String mavconn_url = fs["mavconn_url"];
+    bool send_origin = (int)fs["send_origin"] == 1;
 
     if (!parser.check()) {
         parser.printErrors();
@@ -386,8 +387,11 @@ int main(int argc, char *argv[])
 			send_heartbeat(client.get());
             send_system_time(client.get(), now_micros);
             send_timesync(client.get(), 0, now_nanos);
-			send_gps_global_origin(client.get());
-			send_set_home_position(client.get());
+            if (send_origin)
+            {
+                send_gps_global_origin(client.get());
+                send_set_home_position(client.get());
+            }
 #endif
             if (pose) {
                 cout << "tra:" << xyzvec << endl;
