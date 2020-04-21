@@ -1,6 +1,6 @@
 %YAML:1.0
 camera_orientation: 0
-pose_msg_rate: 30
+pose_msg_rate: 15
 vision_gps_msg: 1 # 0 -> no msg | 1 -> vision msg | 2 -> gps msg | 3 -> vision_delta msg | 4 -> gps + vision_delta msg
 offset_x: 0.11
 offset_y: -0.01
@@ -8,3 +8,4 @@ offset_z: 0.08
 scale_factor: 1.0
 #mavconn_url: "tcp://192.168.10.16:2000"
 mavconn_url: "/dev/ttyACM0:115200"
+send_origin: 0
