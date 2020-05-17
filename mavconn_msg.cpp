@@ -80,7 +80,7 @@ void send_vision_position_estimate(MAVConnInterface *ip, uint64_t micros, Vec3f 
 
 	mavlink::common::msg::VISION_POSITION_ESTIMATE vpe {};
 
-    vpe.usec = micros;
+	vpe.usec = micros;
 	vpe.x = tra[0];
 	vpe.y = tra[1];
 	vpe.z = tra[2];
