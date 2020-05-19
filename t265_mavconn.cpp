@@ -365,15 +365,18 @@ int main(int argc, char *argv[])
                 //        << VelVec[0] << " " << VelVec[1] << " " << VelVec[2] << " " 
                 //        << VelVecFilt[0] << " " << VelVecFilt[1] << " " << VelVecFilt[2] << endl;
 #ifdef MAV
-                if (vision_gps_msg == 1) {
+                if (vision_gps_msg == 1) {        // vision msg
                     send_vision_position_estimate(client.get(), now_micros, xyzvec, rpyvec, reset_counter);
-                    send_vision_speed_estimate(client.get(), now_micros, VelVec, reset_counter);
                     //cout << "R: " << rpyvec[0] << " P: " << rpyvec[1] << " Y: " << rpyvec[2] <<  endl;
                 }
-                else if (vision_gps_msg == 2) {
-                    send_gps_input(client.get(), now_micros, xyzvec, VelVec, yaw_cd);
+                else if (vision_gps_msg == 2) {   // speed msg
+                    send_vision_speed_estimate(client.get(), now_micros, VelVec, reset_counter);
                 }
-                else if (vision_gps_msg == 3) {
+                else if (vision_gps_msg == 3) {   // vision + speed msg
+                    send_vision_position_estimate(client.get(), now_micros, xyzvec, rpyvec, reset_counter);
+                    send_vision_speed_estimate(client.get(), now_micros, VelVec, reset_counter);
+                }
+                else if (vision_gps_msg == 4) {  // vision_delta msg
                     delta_micros = (uint64_t)((now - prev_send_pose) * 1000000.0);
 
                     Affine3f H_PrevAeroBody_CurrAeroBody = H_aeroRef_PrevAeroBody.inv() * H_aeroRef_aeroBody;
@@ -383,7 +386,10 @@ int main(int argc, char *argv[])
 
                     send_vision_position_delta(client.get(), now_micros, delta_micros, deltaRot, deltaTra, confidence);
                 }
-                else if (vision_gps_msg == 4) {
+                else if (vision_gps_msg == 5) {   // gps_in msg
+                    send_gps_input(client.get(), now_micros, xyzvec, VelVec, yaw_cd);
+                }
+                else if (vision_gps_msg == 6) {   // gps_in + vision_delta msg
                     delta_micros = (uint64_t)((now - prev_send_pose) * 1000000.0);
 
                     Affine3f H_PrevAeroBody_CurrAeroBody = H_aeroRef_PrevAeroBody.inv() * H_aeroRef_aeroBody;
@@ -391,8 +397,8 @@ int main(int argc, char *argv[])
                     Matx33f RotM = H_PrevAeroBody_CurrAeroBody.rotation();
                     deltaRot = rotationMatrixToEulerAngles(RotM);
 
-                    send_vision_position_delta(client.get(), now_micros, delta_micros, deltaRot, deltaTra, confidence);
                     send_gps_input(client.get(), now_micros, xyzvec, VelVec, yaw_cd);
+                    send_vision_position_delta(client.get(), now_micros, delta_micros, deltaRot, deltaTra, confidence);
                 }
 #endif
                 H_aeroRef_PrevAeroBody = H_aeroRef_aeroBody;
