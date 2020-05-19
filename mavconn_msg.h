@@ -19,10 +19,12 @@ const double origin_alt = 163.0;
 
 const double radius_of_earth = 6378100.0;
 
+void send_msg_to_gcs(MAVConnInterface *ip, std::string text);
 void send_heartbeat(MAVConnInterface *ip);
 void send_gps_global_origin(MAVConnInterface *ip);
 void send_set_home_position(MAVConnInterface *ip);
-void send_vision_position_estimate(MAVConnInterface *ip, uint64_t micros, Vec3f tra, Vec3f rot);
+void send_vision_position_estimate(MAVConnInterface *ip, uint64_t micros, Vec3f tra, Vec3f rot, uint8_t reset_counter);
+void send_vision_speed_estimate(MAVConnInterface *ip, uint64_t micros, Vec3f vel, uint8_t reset_counter);
 void send_vision_position_delta(MAVConnInterface *ip, uint64_t time_us, uint64_t time_delta_us, Vec3f angle_delta, Vec3f position_delta, float confidence);
 void send_timesync(MAVConnInterface *ip, uint64_t tc1, uint64_t ts1);
 void send_system_time(MAVConnInterface *ip, uint64_t time_unix_usec);

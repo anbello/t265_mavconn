@@ -150,6 +150,11 @@ int main(int argc, char *argv[])
 
 	// Mavlink connection from url
     client = MAVConnInterface::open_url(mavconn_url, 1, 240);
+    client->set_protocol_version(mavconn::Protocol::V20);
+    mavconn::Protocol prot = client->get_protocol_version(); 
+    cout << "PROTOCOL: " << ((prot == mavconn::Protocol::V10) ? 1 : 2) << endl;
+
+    send_msg_to_gcs(client.get(), "T265: Vehicle connected.");
 
     // Mavlink message receive callback
 	client->message_received_cb = [&](const mavlink_message_t * msg, const Framing framing) {
@@ -238,11 +243,17 @@ int main(int argc, char *argv[])
     }
     else if (camera_orientation == 2) {
         // 45degree forward
+
+        // [Error]
         RotMat = Matx33f(0.0       ,  1.0,  0.0       ,
                         -0.70710676, -0.0, -0.70710676,
                         -0.70710676,  0.0,  0.70710676);
 
         H_T265body_aeroBody = Affine3f(RotMat, Vec3f(0.0, 0.0, 0.0));
+        // [/Error]
+
+        // TO DO: modify as per Thien's python below
+        // H_T265body_aeroBody = (tf.euler_matrix(m.pi/4, 0, 0)).dot(np.linalg.inv(H_aeroRef_T265Ref))
     }
     else {
         // Default
@@ -251,7 +262,12 @@ int main(int argc, char *argv[])
 
     H_aeroRef_PrevAeroBody = Affine3f();
 
-    double pose_timestamp;
+    Vec3f prev_data_tra = Vec3f(0.0, 0.0, 0.0);;
+    double pose_timestamp = 0.0;
+    double prev_pose_timestamp = 0.0;
+    double delta_t;
+    double norm_tra, norm_vel_t;
+    u_int32_t reset_counter = 1;
     u_int64_t frame_number;
     float confidence = 0.0;
 
@@ -263,6 +279,8 @@ int main(int argc, char *argv[])
     cfg.enable_stream(RS2_STREAM_POSE, RS2_FORMAT_6DOF);
     // Start pipeline with chosen configuration
     pipe.start(cfg);
+
+    send_msg_to_gcs(client.get(), "T265: Camera connected.");
 
     // Main loop
     while (true)
@@ -318,10 +336,11 @@ int main(int argc, char *argv[])
             // ****************************
 
             VelVec = Vec3f(pose_data.velocity.x, pose_data.velocity.y, pose_data.velocity.z);
-            H_T265Ref_T265body = Affine3f();   // Default constructor. It represents a 4x4 identity matrix.
-            H_T265Ref_T265body.translation(VelVec);
+            H_aeroRef_VelAeroBody = Affine3f();   // Default constructor. It represents a 4x4 identity matrix.
+            H_aeroRef_VelAeroBody.translation(VelVec);
 
-            H_aeroRef_VelAeroBody = H_aeroRef_T265Ref * H_T265Ref_T265body * H_T265body_aeroBody;
+            // H_aeroRef_VelAeroBody = H_aeroRef_T265Ref * H_aeroRef_VelAeroBody * H_T265body_aeroBody;
+            H_aeroRef_VelAeroBody = H_aeroRef_T265Ref * H_aeroRef_VelAeroBody;
 
             VelVec = H_aeroRef_VelAeroBody.translation();
 
@@ -347,7 +366,8 @@ int main(int argc, char *argv[])
                 //        << VelVecFilt[0] << " " << VelVecFilt[1] << " " << VelVecFilt[2] << endl;
 #ifdef MAV
                 if (vision_gps_msg == 1) {
-                    send_vision_position_estimate(client.get(), now_micros, xyzvec, rpyvec);
+                    send_vision_position_estimate(client.get(), now_micros, xyzvec, rpyvec, reset_counter);
+                    send_vision_speed_estimate(client.get(), now_micros, VelVec, reset_counter);
                     //cout << "R: " << rpyvec[0] << " P: " << rpyvec[1] << " Y: " << rpyvec[2] <<  endl;
                 }
                 else if (vision_gps_msg == 2) {
@@ -378,6 +398,25 @@ int main(int argc, char *argv[])
                 H_aeroRef_PrevAeroBody = H_aeroRef_aeroBody;
                 prev_send_pose = now;
             }
+
+            // if pose jump => increment reset_counter
+            if (prev_pose_timestamp > 0.0) {
+                norm_tra = norm(Vec3f(pose_data.translation.x - prev_data_tra(0), pose_data.translation.y - prev_data_tra(1), pose_data.translation.z - prev_data_tra(2)));
+                delta_t = pose_timestamp - prev_pose_timestamp;
+                norm_vel_t = norm(Vec3f(pose_data.velocity.x, pose_data.velocity.y, pose_data.velocity.z)) * delta_t;
+
+                if (norm_tra > norm_vel_t * 1.1) {
+                    send_msg_to_gcs(client.get(), "T265: Pose jump detected");
+                    reset_counter++;
+
+                    cout << "delta-tra: " << norm_tra << " delta-vel-t: " << norm_vel_t << endl;
+                }
+
+                // cout << "delta-tra: " << norm_tra << " delta-vel-t: " << norm_vel_t << endl;
+            }
+
+            prev_data_tra = Vec3f(pose_data.translation.x, pose_data.translation.y, pose_data.translation.z);
+            prev_pose_timestamp = pose_timestamp;
         }
 
         if ((now - prev_heartbeat) > 1.0) {
