@@ -26,6 +26,28 @@ void send_heartbeat(MAVConnInterface *ip) {
 	ip->send_message_ignore_drop(hb);
 }
 
+void send_msg_to_gcs(MAVConnInterface *ip, std::string text) {
+	mavlink_message_t msg {};
+	mavlink::MsgMap map(msg);
+
+	mavlink::common::msg::STATUSTEXT stt {};
+
+	std::array<char,50> txt;
+	int len = (text.length() < 49) ? text.length() : 49;
+	for (int i = 0; i < len; i++) {
+		txt[i] = text[i];
+	}
+	txt[len] = '\0';
+	
+	stt.text = txt;
+	stt.severity = 6;
+
+	stt.serialize(map);
+	mavlink::mavlink_finalize_message(&msg, ip->get_system_id(), ip->get_component_id(), stt.MIN_LENGTH, stt.LENGTH, stt.CRC_EXTRA);
+
+	ip->send_message_ignore_drop(&msg);
+}
+
 void send_gps_global_origin(MAVConnInterface *ip) {
 	mavlink_message_t msg {};
 	mavlink::MsgMap map(msg);
@@ -74,7 +96,7 @@ void send_set_home_position(MAVConnInterface *ip) {
 	ip->send_message_ignore_drop(&msg);
 }
 
-void send_vision_position_estimate(MAVConnInterface *ip, uint64_t micros, Vec3f tra, Vec3f rot) {
+void send_vision_position_estimate(MAVConnInterface *ip, uint64_t micros, Vec3f tra, Vec3f rot, uint8_t reset_counter) {
 	mavlink_message_t msg {};
 	mavlink::MsgMap map(msg);
 
@@ -87,9 +109,34 @@ void send_vision_position_estimate(MAVConnInterface *ip, uint64_t micros, Vec3f 
 	vpe.roll = rot[0];
 	vpe.pitch = rot[1];
 	vpe.yaw = rot[2];
+	std::array<float,21> cov;
+  	cov.fill(0.0);
+	vpe.covariance = cov;
+	vpe.reset_counter = reset_counter;
 
 	vpe.serialize(map);
 	mavlink::mavlink_finalize_message(&msg, ip->get_system_id(), ip->get_component_id(), vpe.MIN_LENGTH, vpe.LENGTH, vpe.CRC_EXTRA);
+
+	ip->send_message_ignore_drop(&msg);
+}
+
+void send_vision_speed_estimate(MAVConnInterface *ip, uint64_t micros, Vec3f vel, uint8_t reset_counter) {
+	mavlink_message_t msg {};
+	mavlink::MsgMap map(msg);
+
+	mavlink::common::msg::VISION_SPEED_ESTIMATE vse {};
+
+	vse.usec = micros;
+	vse.x = vel[0];
+	vse.y = vel[1];
+	vse.z = vel[2];
+	std::array<float,9> cov;
+  	cov.fill(0.0);
+	vse.covariance = cov;
+	vse.reset_counter = reset_counter;
+
+	vse.serialize(map);
+	mavlink::mavlink_finalize_message(&msg, ip->get_system_id(), ip->get_component_id(), vse.MIN_LENGTH, vse.LENGTH, vse.CRC_EXTRA);
 
 	ip->send_message_ignore_drop(&msg);
 }
