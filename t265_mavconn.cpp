@@ -216,6 +216,7 @@ int main(int argc, char *argv[])
 
     Vec3f TraVec = Vec3f(0.0, 0.0, 0.0);
     Vec3f VelVec = Vec3f(0.0, 0.0, 0.0);
+    Vec3f VelVecAvg = Vec3f(0.0, 0.0, 0.0);
     Vec3f deltaRot = Vec3f(0.0, 0.0, 0.0);
     Vec3f deltaTra = Vec3f(0.0, 0.0, 0.0);
     Matx33f RotMat;
@@ -268,6 +269,7 @@ int main(int argc, char *argv[])
     double delta_t;
     double norm_tra, norm_vel_t;
     u_int32_t reset_counter = 1;
+    u_int32_t avg_counter = 0;
     u_int64_t frame_number;
     float confidence = 0.0;
 
@@ -316,11 +318,11 @@ int main(int argc, char *argv[])
             // Offset
             // ******************
 
-            H_body_camera = Affine3f();   // Default constructor. It represents a 4x4 identity matrix.
-            H_body_camera.translation(Vec3f(offset_x, offset_y, offset_z));
-            H_camera_body = H_body_camera.inv();
+            // H_body_camera = Affine3f();   // Default constructor. It represents a 4x4 identity matrix.
+            // H_body_camera.translation(Vec3f(offset_x, offset_y, offset_z));
+            // H_camera_body = H_body_camera.inv();
 
-            H_aeroRef_aeroBody = H_body_camera * H_aeroRef_aeroBody * H_camera_body;
+            // H_aeroRef_aeroBody = H_body_camera * H_aeroRef_aeroBody * H_camera_body;
 
             // ******************
             // Pose for msg
@@ -343,6 +345,8 @@ int main(int argc, char *argv[])
             H_aeroRef_VelAeroBody = H_aeroRef_T265Ref * H_aeroRef_VelAeroBody;
 
             VelVec = H_aeroRef_VelAeroBody.translation();
+            VelVecAvg += VelVec;
+            avg_counter++;
 
             // ***********************************************
             // Yaw in cdeg and velocity from position derivate
@@ -370,11 +374,15 @@ int main(int argc, char *argv[])
                     //cout << "R: " << rpyvec[0] << " P: " << rpyvec[1] << " Y: " << rpyvec[2] <<  endl;
                 }
                 else if (vision_gps_msg == 2) {   // speed msg
-                    send_vision_speed_estimate(client.get(), now_micros, VelVec, reset_counter);
+                    VelVecAvg /= (float)avg_counter;
+                    avg_counter = 0;
+                    send_vision_speed_estimate(client.get(), now_micros, VelVecAvg, reset_counter);
                 }
                 else if (vision_gps_msg == 3) {   // vision + speed msg
+                    VelVecAvg /= (float)avg_counter;
+                    avg_counter = 0;
                     send_vision_position_estimate(client.get(), now_micros, xyzvec, rpyvec, reset_counter);
-                    send_vision_speed_estimate(client.get(), now_micros, VelVec, reset_counter);
+                    send_vision_speed_estimate(client.get(), now_micros, VelVecAvg, reset_counter);
                 }
                 else if (vision_gps_msg == 4) {  // vision_delta msg
                     delta_micros = (uint64_t)((now - prev_send_pose) * 1000000.0);
@@ -387,7 +395,9 @@ int main(int argc, char *argv[])
                     send_vision_position_delta(client.get(), now_micros, delta_micros, deltaRot, deltaTra, confidence);
                 }
                 else if (vision_gps_msg == 5) {   // gps_in msg
-                    send_gps_input(client.get(), now_micros, xyzvec, VelVec, yaw_cd);
+                    VelVecAvg /= (float)avg_counter;
+                    avg_counter = 0;
+                    send_gps_input(client.get(), now_micros, xyzvec, VelVecAvg, yaw_cd);
                 }
                 else if (vision_gps_msg == 6) {   // gps_in + vision_delta msg
                     delta_micros = (uint64_t)((now - prev_send_pose) * 1000000.0);
@@ -397,7 +407,9 @@ int main(int argc, char *argv[])
                     Matx33f RotM = H_PrevAeroBody_CurrAeroBody.rotation();
                     deltaRot = rotationMatrixToEulerAngles(RotM);
 
-                    send_gps_input(client.get(), now_micros, xyzvec, VelVec, yaw_cd);
+                    VelVecAvg /= (float)avg_counter;
+                    avg_counter = 0;
+                    send_gps_input(client.get(), now_micros, xyzvec, VelVecAvg, yaw_cd);
                     send_vision_position_delta(client.get(), now_micros, delta_micros, deltaRot, deltaTra, confidence);
                 }
 #endif
@@ -411,7 +423,8 @@ int main(int argc, char *argv[])
                 delta_t = pose_timestamp - prev_pose_timestamp;
                 norm_vel_t = norm(Vec3f(pose_data.velocity.x, pose_data.velocity.y, pose_data.velocity.z)) * delta_t;
 
-                if (norm_tra > norm_vel_t * 1.1) {
+                //if (norm_tra > norm_vel_t * 1.1) {
+                if (norm_tra > 0.1) {
                     send_msg_to_gcs(client.get(), "T265: Pose jump detected");
                     reset_counter++;
 
