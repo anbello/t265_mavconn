@@ -1,7 +1,7 @@
 %YAML:1.0
 camera_orientation: 0
 pose_msg_rate: 15
-vision_gps_msg: 1 # 0 -> no msg | 1 -> vision msg | 2 -> speed msg | 3 -> vision + speed msg | 4 -> vision_delta msg | 5 -> gps msg | 6 -> gps + vision_delta msg
+vision_gps_msg: 1 # 0 -> no msg | 1 -> vision msg | 2 -> speed msg | 3 -> vision + speed msg | 4 -> vision_delta msg | 5 -> gps_in msg | 6 -> gps_in + vision_delta msg
 offset_x: 0.11
 offset_y: -0.01
 offset_z: 0.08

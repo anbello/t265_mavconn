@@ -316,11 +316,11 @@ int main(int argc, char *argv[])
             // Offset
             // ******************
 
-            H_body_camera = Affine3f();   // Default constructor. It represents a 4x4 identity matrix.
-            H_body_camera.translation(Vec3f(offset_x, offset_y, offset_z));
-            H_camera_body = H_body_camera.inv();
+            // H_body_camera = Affine3f();   // Default constructor. It represents a 4x4 identity matrix.
+            // H_body_camera.translation(Vec3f(offset_x, offset_y, offset_z));
+            // H_camera_body = H_body_camera.inv();
 
-            H_aeroRef_aeroBody = H_body_camera * H_aeroRef_aeroBody * H_camera_body;
+            // H_aeroRef_aeroBody = H_body_camera * H_aeroRef_aeroBody * H_camera_body;
 
             // ******************
             // Pose for msg
@@ -411,7 +411,8 @@ int main(int argc, char *argv[])
                 delta_t = pose_timestamp - prev_pose_timestamp;
                 norm_vel_t = norm(Vec3f(pose_data.velocity.x, pose_data.velocity.y, pose_data.velocity.z)) * delta_t;
 
-                if (norm_tra > norm_vel_t * 1.1) {
+                //if (norm_tra > norm_vel_t * 1.1) {
+                if (norm_tra > 0.1) {
                     send_msg_to_gcs(client.get(), "T265: Pose jump detected");
                     reset_counter++;
 
