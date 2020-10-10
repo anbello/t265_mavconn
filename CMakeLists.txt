@@ -8,6 +8,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 # Define project name
 project(t265_mavconn)
 
+set(APRILTAG_INC /usr/local/include/apriltag)
+set(APRILTAG_LIB /usr/local/lib/libapriltag.so)
+
+find_path(APRILTAG_INC NAMES apriltag.h PATH_SUFFIXES apriltag)
+find_library(APRILTAG_LIB apriltag)
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(apriltag DEFAULT_MSG APRILTAG_INC APRILTAG_LIB)
+
+add_library(apriltag INTERFACE)
+target_include_directories(apriltag INTERFACE ${APRILTAG_INC})
+target_link_libraries(apriltag INTERFACE ${APRILTAG_LIB})
+
 # Find OpenCV, you may need to set OpenCV_DIR variable
 # to the absolute path to the directory containing OpenCVConfig.cmake file
 # via the command line or GUI
@@ -51,7 +63,7 @@ set(OBJS
 )
 
 # Declare the executable target built from your sources
-add_executable(t265_mavconn t265_mavconn.cpp mavconn_msg.cpp)
+add_executable(t265_mavconn t265_mavconn.cpp mavconn_msg.cpp pose_apriltag.cpp)
 
 # Link your application with OpenCV libraries
-target_link_libraries(t265_mavconn LINK_PRIVATE realsense2 ${OpenCV_LIBS} ${libmavconn_LIBRARIES})
+target_link_libraries(t265_mavconn LINK_PRIVATE realsense2 ${OpenCV_LIBS} ${libmavconn_LIBRARIES} apriltag -lpthread)
