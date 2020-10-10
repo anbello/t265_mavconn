@@ -416,6 +416,7 @@ int main(int argc, char *argv[])
                     send_msg_to_gcs(client.get(), "T265: Pose jump detected");
                     reset_counter++;
 
+                    cout << "Pose jump detected" << endl;
                     cout << "delta-tra: " << norm_tra << " delta-vel-t: " << norm_vel_t << endl;
                 }
 
@@ -427,7 +428,7 @@ int main(int argc, char *argv[])
         }
 
         if ((now - prev_heartbeat) > 1.0) {
-            cout << "Tick Heart Beat = " << (now - prev_heartbeat) << endl;
+            // cout << "Tick Heart Beat = " << (now - prev_heartbeat) << endl;
             prev_heartbeat = now;
 #ifdef MAV
 			send_heartbeat(client.get());
@@ -440,10 +441,10 @@ int main(int argc, char *argv[])
             }
 #endif
             if (pose) {
-                cout << "tra:" << xyzvec << endl;
-                cout << "rot:" << rpyvec << endl;
-                cout << "rt2:" << rpyvec2 << endl;
-                cout << "fn:" << frame_number << " dt:" << (now - pose_timestamp * 1000.0) << " conf:" << confidence << endl;
+                // cout << "tra:" << xyzvec << endl;
+                // cout << "rot:" << rpyvec << endl;
+                // cout << "rt2:" << rpyvec2 << endl;
+                // cout << "fn:" << frame_number << " dt:" << (now - pose_timestamp * 1000.0) << " conf:" << confidence << endl;
             }
         }
     }
