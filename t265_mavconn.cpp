@@ -326,12 +326,20 @@ int main(int argc, char *argv[])
             // auto camera_pose = frames.get_pose_frame().get_pose_data();
             auto camera_pose = pose_data;
 
-            if(fisheye_frame_number % 6 == 0)
+            if(fisheye_frame_number % 10 == 0)
             {
-                fisheye_frame.keep();
+                auto epoch_begin = system_clock::now().time_since_epoch();
+                u_int64_t micros_begin = duration_cast<microseconds>(epoch_begin).count();
+
+                // fisheye_frame.keep();
                 
-                std::async(std::launch::async, std::bind([&tag_manager](rs2::frame img, int fn, rs2_pose pose){
-                    auto tags = tag_manager.detect((unsigned char*)img.get_data(), &pose);
+                //std::async(std::launch::async, std::bind([&tag_manager](rs2::frame img, int fn, rs2_pose pose){
+
+                    rs2::frame img = fisheye_frame;
+                    int fn = fisheye_frame_number;
+                    // auto pose = camera_pose;
+
+                    auto tags = tag_manager.detect((unsigned char*)img.get_data(), &camera_pose);
 
                     if(tags.pose_in_camera.size() == 0) {
                         std::cout << "frame " << fn << "|no Apriltag detections" << std::endl;
@@ -340,9 +348,13 @@ int main(int argc, char *argv[])
                         std::stringstream ss; ss << "frame " << fn << "|tag id: " << tags.get_id(t) << "|";
                         std::cout << ss.str() << "camera " << print(tags.pose_in_camera[t]) << std::endl;
                         std::cout << std::setw(ss.str().size()) << " " << "world  " <<
-                                    (pose.tracker_confidence == 3 ? print(tags.pose_in_world[t]) : " NA ") << std::endl << std::endl;
+                                    (camera_pose.tracker_confidence == 3 ? print(tags.pose_in_world[t]) : " NA ") << std::endl << std::endl;
                     }
-                }, fisheye_frame, frame_number, camera_pose));
+                // }, fisheye_frame, fisheye_frame_number, camera_pose));
+
+                auto epoch_end = system_clock::now().time_since_epoch();
+                u_int64_t micros_end = duration_cast<microseconds>(epoch_end).count();
+                cout << "time apriltag detect [us]: " << (micros_end - micros_begin) << endl;
             }
 
             // ******************
