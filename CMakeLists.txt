@@ -63,7 +63,10 @@ set(OBJS
 )
 
 # Declare the executable target built from your sources
-add_executable(t265_mavconn t265_mavconn.cpp mavconn_msg.cpp pose_apriltag.cpp)
+add_executable(t265_mavconn t265_mavconn.cpp mavconn_msg.cpp)
+add_executable(t265_mav_tag t265_mavconn.cpp mavconn_msg.cpp pose_apriltag.cpp)
 
 # Link your application with OpenCV libraries
-target_link_libraries(t265_mavconn LINK_PRIVATE realsense2 ${OpenCV_LIBS} ${libmavconn_LIBRARIES} apriltag -lpthread)
+target_link_libraries(t265_mavconn LINK_PRIVATE realsense2 ${OpenCV_LIBS} ${libmavconn_LIBRARIES})
+target_link_libraries(t265_mav_tag LINK_PRIVATE realsense2 ${OpenCV_LIBS} ${libmavconn_LIBRARIES} apriltag)
+#target_link_libraries(t265_mav_tag LINK_PRIVATE realsense2 ${OpenCV_LIBS} ${libmavconn_LIBRARIES} apriltag -lpthread)

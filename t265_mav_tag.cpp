@@ -9,6 +9,8 @@
 
 #include "mavconn_msg.h"
 
+#include "pose_apriltag.hpp"
+
 #define MAV 1
 
 using namespace std;
@@ -277,8 +279,21 @@ int main(int argc, char *argv[])
     rs2::config cfg;
     // Add pose stream
     cfg.enable_stream(RS2_STREAM_POSE, RS2_FORMAT_6DOF);
-    // Start pipeline with chosen configuration
-    pipe.start(cfg);
+    // Enable both image streams
+    // Note: It is not currently possible to enable only one
+    cfg.enable_stream(RS2_STREAM_FISHEYE, 1, RS2_FORMAT_Y8);
+    cfg.enable_stream(RS2_STREAM_FISHEYE, 2, RS2_FORMAT_Y8);
+
+    // Start pipe and get camera calibrations
+    const int fisheye_sensor_idx = 1;  //for the left fisheye lens of T265
+    auto pipe_profile       = pipe.start(cfg);
+    auto fisheye_stream     = pipe_profile.get_stream(RS2_STREAM_FISHEYE, fisheye_sensor_idx);
+    auto fisheye_intrinsics = fisheye_stream.as<rs2::video_stream_profile>().get_intrinsics();
+    auto body_fisheye_extr  = fisheye_stream.get_extrinsics_to(pipe_profile.get_stream(RS2_STREAM_POSE));
+    const double tag_size_m = 0.144; // The expected size of the tag in meters. This is required to get the relative pose
+
+    // Create an Apriltag detection manager
+    apriltag_manager tag_manager(fisheye_intrinsics, body_fisheye_extr, tag_size_m);
 
     send_msg_to_gcs(client.get(), "T265: Camera connected.");
 
@@ -294,13 +309,53 @@ int main(int argc, char *argv[])
         auto frames = pipe.wait_for_frames();
         // Retrieve the pose frame
         auto pose = frames.get_pose_frame();
-
+        
         if (pose) {
             // Retrieve the pose data from T265 position tracking sensor
             auto pose_data = pose.get_pose_data();
             pose_timestamp = pose.get_timestamp();
             frame_number = pose.get_frame_number();
             confidence = pose_data.tracker_confidence * 100.0 / 3.0;
+
+            // ******************
+            // AprilTag Detection
+            // ******************
+
+            auto fisheye_frame = frames.get_fisheye_frame(fisheye_sensor_idx);
+            auto fisheye_frame_number  = fisheye_frame.get_frame_number();
+            // auto camera_pose = frames.get_pose_frame().get_pose_data();
+            auto camera_pose = pose_data;
+
+            if(fisheye_frame_number % 10 == 0)
+            {
+                auto epoch_begin = system_clock::now().time_since_epoch();
+                u_int64_t micros_begin = duration_cast<microseconds>(epoch_begin).count();
+
+                // fisheye_frame.keep();
+                
+                //std::async(std::launch::async, std::bind([&tag_manager](rs2::frame img, int fn, rs2_pose pose){
+
+                    rs2::frame img = fisheye_frame;
+                    int fn = fisheye_frame_number;
+                    // auto pose = camera_pose;
+
+                    auto tags = tag_manager.detect((unsigned char*)img.get_data(), &camera_pose);
+
+                    if(tags.pose_in_camera.size() == 0) {
+                        std::cout << "frame " << fn << "|no Apriltag detections" << std::endl;
+                    }
+                    for(int t=0; t<tags.pose_in_camera.size(); ++t){
+                        std::stringstream ss; ss << "frame " << fn << "|tag id: " << tags.get_id(t) << "|";
+                        std::cout << ss.str() << "camera " << print(tags.pose_in_camera[t]) << std::endl;
+                        std::cout << std::setw(ss.str().size()) << " " << "world  " <<
+                                    (camera_pose.tracker_confidence == 3 ? print(tags.pose_in_world[t]) : " NA ") << std::endl << std::endl;
+                    }
+                // }, fisheye_frame, fisheye_frame_number, camera_pose));
+
+                auto epoch_end = system_clock::now().time_since_epoch();
+                u_int64_t micros_end = duration_cast<microseconds>(epoch_end).count();
+                cout << "time apriltag detect [us]: " << (micros_end - micros_begin) << endl;
+            }
 
             // ******************
             // Transform
